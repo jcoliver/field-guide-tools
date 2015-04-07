@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Insert title here</title>
+<title>Parse tool</title>
 </head>
 <body>
 
@@ -14,16 +14,28 @@
 	?>
 		<h3>Process Scratchpads file for field guide app</h3>
 			<div>
-				<p>Upload a text file (.txt)</p>
+				<p>Upload two tab-delimited text files (.txt).</p>
+				<p>These should be converted from an export from Scratchpads, the  
+				original (Excel-formatted) files are likely titled &quot;node_importer_spm_xls.xls&quot; 
+				and &quot;taxonomy_importer_[vocabulary]_xls.xls&quot; for the taxon descriptions and 
+				taxonomy exports respectively.  [vocabulary] is the name of the vocabulary that was 
+				exported from Scratchpads.  For example if the vocabulary &quot;Bembidiina&quot; was 
+				exported from Scratchpads, the original file would likely be called &quot;taxonomy_importer_bembidiina_xls.xls&quot;</p>
 			</div>
 			<form action="<?php echo $_SERVER['PHP_SELF'] ?>" method="post" enctype="multipart/form-data">
-				<label for="file">Choose file:</label>
-				<input type="file" name="userfile" id="file" /><br /><br />
-				<button>Validate text file</button>
+				<label for="description-file">Taxon description file:</label>
+				<input type="file" name="description-file" id="description-file" /><br /><br />
+
+				<label for="taxonomy-file">Taxonomy file:</label>
+				<input type="file" name="taxonomy-file" id="taxonomy-file" /><br /><br />
+				<button>Make data</button>
 			</form>
 	<?php
 		} // End GET
 		elseif ($_SERVER['REQUEST_METHOD'] == 'POST') {
+			include_once 'ParseDescriptionFile.php';
+			$output = process_files();
+			echo $output;
 		}
 	?>
 
