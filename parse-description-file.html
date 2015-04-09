@@ -33,7 +33,7 @@
 	<?php
 		} // End GET
 		elseif ($_SERVER['REQUEST_METHOD'] == 'POST') {
-			include_once 'ParseDescriptionFile.php';
+			include_once 'parsing_functions.php';
 			$output = process_files();
 			echo $output;
 		}
