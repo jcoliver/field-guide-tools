@@ -33,6 +33,7 @@
 	<?php
 		} // End GET
 		elseif ($_SERVER['REQUEST_METHOD'] == 'POST') {
+//phpinfo();
 			include_once 'parsing_functions.php';
 			$output = process_files();
 			echo $output;

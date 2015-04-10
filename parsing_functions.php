@@ -9,7 +9,10 @@ function process_files() {
 	$tmp_path = "tmp/";
 	$file_name = "data/taxa.json"; // Make sure you can write to this file
 	$local_media_path = "data/media/"; // Make sure this directory has write permissions
-	$remote_media_path = "http://bembidion.info/sites/bembidion.info/files/";
+
+	// Files stored on Scratchpads won't have full URL, but rather "public://Filename.jpg"
+	// $public_path is value to use for replacing "public://" in files stored on scratchpads
+	$public_path = "http://bembidion.info/sites/bembidion.info/files/"; 
 
 	$dtz = new DateTimeZone("America/Los_Angeles");
 	$start_time = new DateTime("NOW", $dtz);
@@ -91,7 +94,8 @@ function process_files() {
 								// Now see if there is description information we should add
 								if (array_key_exists($name, $desc_as_array)) {
 									$description = $desc_as_array[$name];
-									$for_taxons = add_description($description, $for_taxons, $local_media_path, $remote_media_path, $tmp_path);
+									$for_taxons = add_description($description, $for_taxons, $local_media_path, $public_path, $tmp_path);
+									//$for_taxons = add_description($description, $for_taxons, $local_media_path, $remote_media_path, $tmp_path);
 								}
 								
 								$taxons_for_json[] = $for_taxons;
@@ -251,7 +255,8 @@ function desc_to_array($desc_mapping, $desc_file_array) {
 	return FALSE;
 }
 
-function add_description($description, $add_to, $local_media_path, $remote_media_path, $tmp_path) {
+function add_description($description, $add_to, $local_media_path, $public_path, $tmp_path) {
+//function add_description($description, $add_to, $local_media_path, $remote_media_path, $tmp_path) {
 	if (is_array($description)) {
 		foreach ($description as $key => $value) {
 			if (strlen(trim($value)) > 0) {
@@ -296,90 +301,59 @@ function add_description($description, $add_to, $local_media_path, $remote_media
 						// TODO: some hard-coding here to just get the first image file...
 						$value = explode("|", $value);
 						$image_file_name = $value[2];
-						$file_url = $remote_media_path . $image_file_name;
-						$file_path = $local_media_path . $image_file_name;
-						if (!array_key_exists("media", $add_to) || !is_array($add_to['media'])) {
+						$remote_image_path = $value[3];
+						// Don't do this:
+						//	$remote_path_exploded = explode("/", $remote_image_path);
+						//	$image_file_name = $remote_path_exploded[count($remote_path_exploded) - 1];
+						// it won't work with morphbank images (because $value[3] is a url with "/" characters)						
+						
+						if (substr_count($remote_image_path, "public://") > 0) {
+							$remote_image_path = str_replace("public://", $public_path, $remote_image_path);
+						}
+
+						// TODO: Do check to make sure Imagick available
+						// try/catch
+						$image = new Imagick($remote_image_path);
+						$image->setimageformat("jpg");
+						$image_height = $image->getimageheight();
+						if ($image_height > 500) {
+							$image->scaleimage(0, 500);
+						}
+						$image_width = $image->getimagewidth();
+						if ($image_width > 500) {
+							$image->scaleimage(500, 0);
+						}
+						
+						$local_file_path = $local_media_path . $image_file_name;
+						if (!array_key_exists('media', $add_to) || !is_array($add_to['media'])) {
 							$add_to['media'] = array();
 						}
 						$new_media = array(
 								'type' => "img",
 								'alt' => $key,
 						);
-						$tmp_file_path = $tmp_path . $file_path;
-						if (copy($file_url, $tmp_file_path)) {
-							$new_media['src'] = $file_path;
-						} else { // TODO: Need to deal with these failures on JavaScript side of things...
+						// TODO: it wouldn't hurt to replace spaces with underscores...
+						$tmp_file_path = $tmp_path . $local_file_path;
+						// Let's make sure the extension is .jpg...
+						$path_exploded = explode(".", $tmp_file_path);
+						$ext = $path_exploded[count($path_exploded) - 1];
+						$jpg_array = array("jpg", "jpeg");
+						if (!in_array(strtolower($ext), $jpg_array)) {
+							$tmp_file_path .= ".jpg";
+						}
+						
+						if ($image->writeimage("jpg:" . $tmp_file_path)){
+							$new_media['src'] = $local_file_path;
+						} else {// TODO: Need to deal with these failures on JavaScript side of things...
 							$new_media['filename'] = $image_file_name;
 						}
 						$add_to['media'][] = $new_media;
+						
 				} // end switch on $key
 			} // end conditional for non-empty $value
 		}
 		return $add_to;
 	} else {
 		return $add_to;
-	}
-}
-
-function fromCastor() {
-	
-	// in the POST section from the castor file
-	
-	$redirect = TRUE;
-	$show_acceptable_values = FALSE;
-	// We've already done authorization, but need to check to see if a file was uploaded, and if so, to make sure it is not too large.
-	$allowed_filetypes = array("txt");
-	$filename = $_FILES['userfile']['name'];
-	$tmpfile = $_FILES['userfile']['tmp_name'];
-	$filename_exploded = explode(".", $filename);
-	$ext = strtolower(end($filename_exploded));
-	// check for extension
-	if(!in_array($ext, $allowed_filetypes)){
-		setcookie('mbbadextension', '1', 0, COOKIE_PATH);
-	} else {
-		$max_filesize = 1048576; //1.0 MB
-		// check for size
-		if(filesize($_FILES['userfile']['tmp_name']) > $max_filesize){
-			$max_in_mb = $max_filesize/1000000;
-			$max_in_mb = round($max_in_mb, 1);
-			$upload_in_mb = filesize($_FILES['userfile']['tmp_name']) / 1000000;
-			$upload_in_mb = round($upload_in_mb,1);
-			setcookie('mbtoolarge', $upload_in_mb, 0, COOKIE_PATH);
-		} else {
-			// check for successful upload
-			if(!is_uploaded_file($_FILES['userfile']['tmp_name'])){
-				$upload_error = $_FILES['userfile']['error'];
-				setcookie('mbuploaderror', $upload_error, 0, COOKIE_PATH);
-			} else {
-				$file = $tmpfile;
-				// check for readability
-				if (!file_exists($file) or !is_readable($file)) {
-					setcookie('mbreaderror', '1', 0, COOKIE_PATH);
-				} else {
-					// Get the file contents
-					$all_file = file_get_contents($file);
-					// Check for UTF-8
-					if (!mb_check_encoding($all_file, "UTF-8")) {
-						setcookie('notutf8', '1', 0, COOKIE_PATH);
-					} else {
-						// split file into array, each line is an element in the array
-						// First replace any \r newlines with \n
-						$newlines = substr_count($all_file,"\r");
-						if ($newlines > 0) {
-							$all_file = str_replace("\r", "\n", $all_file);
-						}
-	
-						$all_file = convert_smart_quotes($all_file);
-	
-						$file_as_array = explode("\n", $all_file);
-						// Start with a validation check; need to make sure:
-						// Parsed filename is valid
-						//	-first token refers to specimen in database (which also has locality information)
-						//  -second token is appropriate part ('habitus', 'pronotum', 'genleft', etc)
-						//	-third token is acceptable ('scale' or 'edf')
-					}
-				}
-			}
-		}
 	}
 }
