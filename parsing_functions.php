@@ -3,7 +3,7 @@
 
 // two files a description-file and taxonomy-file
 function process_files() {
-	include_once 'RequestedFields.php';
+	include_once 'requested_fields.php';
 	$top_concept_guid = "bembidion.info:taxon-concepts:000007"; // this is the one we want replaced with "none"
 	$skip_unidentified = TRUE;
 	$tmp_path = "tmp/";
@@ -12,6 +12,14 @@ function process_files() {
 
 	// Files stored on Scratchpads won't have full URL, but rather "public://Filename.jpg"
 	// $public_path is value to use for replacing "public://" in files stored on scratchpads
+	// TODO: This should become an array of arrays with search/replace pairs
+	// array (
+	//		array(
+	//			'search' => "public://",
+	//			'replace' => "http://bembidion.info/sites/bembidion.info/files/"
+	//		),
+	//		array(),
+	// );
 	$public_path = "http://bembidion.info/sites/bembidion.info/files/"; 
 
 	$dtz = new DateTimeZone("America/Los_Angeles");
@@ -301,6 +309,10 @@ function add_description($description, $add_to, $local_media_path, $public_path,
 						// TODO: some hard-coding here to just get the first image file...
 						$value = explode("|", $value);
 						$image_file_name = $value[2];
+						// Since we are NOT using $image_file_name to retrieve the file, we can manipulate 
+						// it here.  Replace space(s) with underscores
+						$image_file_name = preg_replace("/\s+/", "_", trim($image_file_name));
+						
 						$remote_image_path = $value[3];
 						// Don't do this:
 						//	$remote_path_exploded = explode("/", $remote_image_path);
@@ -325,6 +337,23 @@ function add_description($description, $add_to, $local_media_path, $public_path,
 						}
 						
 						$local_file_path = $local_media_path . $image_file_name;
+						// Let's make sure the extension is .jpg...
+						$append_jpg = FALSE;
+						if (substr_count($local_file_path, ".") > 0) {
+							$path_exploded = explode(".", $local_file_path);
+							$ext = $path_exploded[count($path_exploded) - 1];
+							$jpg_array = array("jpg", "jpeg");
+							if (!in_array(strtolower($ext), $jpg_array)) {
+								$append_jpg = TRUE;
+								//$local_file_path .= ".jpg";
+							}
+						} else {
+							$append_jpg = TRUE;
+						}
+						if ($append_jpg) {
+							$local_file_path .= ".jpg";
+						}
+						
 						if (!array_key_exists('media', $add_to) || !is_array($add_to['media'])) {
 							$add_to['media'] = array();
 						}
@@ -332,15 +361,8 @@ function add_description($description, $add_to, $local_media_path, $public_path,
 								'type' => "img",
 								'alt' => $key,
 						);
-						// TODO: it wouldn't hurt to replace spaces with underscores...
+
 						$tmp_file_path = $tmp_path . $local_file_path;
-						// Let's make sure the extension is .jpg...
-						$path_exploded = explode(".", $tmp_file_path);
-						$ext = $path_exploded[count($path_exploded) - 1];
-						$jpg_array = array("jpg", "jpeg");
-						if (!in_array(strtolower($ext), $jpg_array)) {
-							$tmp_file_path .= ".jpg";
-						}
 						
 						if ($image->writeimage("jpg:" . $tmp_file_path)){
 							$new_media['src'] = $local_file_path;
