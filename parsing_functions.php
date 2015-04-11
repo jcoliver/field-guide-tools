@@ -1,39 +1,50 @@
 <?php
 
 
-// two files a description-file and taxonomy-file
+/**
+ * Entry point for processing files. Called from parse-description-file.html
+ * 
+ * @return string
+ * HTML-formatted string with details about success or failure of conversions
+ */
 function process_files() {
 	include_once 'requested_fields.php';
+	// TODO: make this an array
 	$top_concept_guid = "bembidion.info:taxon-concepts:000007"; // this is the one we want replaced with "none"
+	// TODO: make array of strings to skip?  Skip none is empty array
 	$skip_unidentified = TRUE;
+	$json_file_name = "data/taxa.json"; // Make sure you can write to this file
 	$tmp_path = "tmp/";
-	$file_name = "data/taxa.json"; // Make sure you can write to this file
-	$local_media_path = "data/media/"; // Make sure this directory has write permissions
 
-	// Files stored on Scratchpads won't have full URL, but rather "public://Filename.jpg"
-	// $public_path is value to use for replacing "public://" in files stored on scratchpads
-	// TODO: This should become an array of arrays with search/replace pairs
-	// array (
-	//		array(
-	//			'search' => "public://",
-	//			'replace' => "http://bembidion.info/sites/bembidion.info/files/"
-	//		),
-	//		array(),
-	// );
-	$public_path = "http://bembidion.info/sites/bembidion.info/files/"; 
+	// paths to replace in media files.  See MediaDetails
+	$replacement_paths = array (
+			array (
+					'search' => "public://",
+					'replace' => "http://bembidion.info/sites/bembidion.info/files/" 
+			) 
+	);
+	$media_details = new MediaDetails("data/media/", $tmp_path, $replacement_paths);	
 
 	$dtz = new DateTimeZone("America/Los_Angeles");
 	$start_time = new DateTime("NOW", $dtz);
 	
 	$return_string = "";
-	$desc_file_ok = check_file('description-file');
-	$tax_file_ok = check_file('taxonomy-file');
+	$desc_file_errors = check_file('description-file');
+	$desc_file_ok = strlen(trim($desc_file_errors)) == 0;
+
+	$tax_file_errors = check_file('taxonomy-file');
+	$tax_file_ok = strlen(trim($tax_file_errors)) == 0;
+	
+	//$desc_file_ok = check_file('description-file');
+	//$tax_file_ok = check_file('taxonomy-file');
 
 	if (!$desc_file_ok) {
-		$return_string .= "<p>Problem with description file</p>";
+		$return_string .= "<p>Problem with description file:</p>";
+		$return_string .= "<p>" . $desc_file_errors . "</p>";
 	}
 	if (!$tax_file_ok) {
 		$return_string .= "<p>Problem with taxonomy file</p>";
+		$return_string .= "<p>" . $tax_file_errors . "</p>";
 	}
 
 	if ($desc_file_ok && $tax_file_ok) {
@@ -52,8 +63,6 @@ function process_files() {
 			$tax_header = $tax_file_array[0];
 			$tax_mapping = get_mapping("taxonomy", $tax_header);
 				
-			
-			
 			$taxons_for_json = array();
 			for ($line = 1; $line < count($tax_file_array); $line++) {
 				$one_taxon = $tax_file_array[$line];
@@ -102,8 +111,7 @@ function process_files() {
 								// Now see if there is description information we should add
 								if (array_key_exists($name, $desc_as_array)) {
 									$description = $desc_as_array[$name];
-									$for_taxons = add_description($description, $for_taxons, $local_media_path, $public_path, $tmp_path);
-									//$for_taxons = add_description($description, $for_taxons, $local_media_path, $remote_media_path, $tmp_path);
+									$for_taxons = add_description($description, $for_taxons, $media_details);
 								}
 								
 								$taxons_for_json[] = $for_taxons;
@@ -114,26 +122,24 @@ function process_files() {
 			}
 			
 			$taxons_json = json_encode($taxons_for_json, JSON_PRETTY_PRINT);
-			// TODO: file paths have "\/" instead of "/".  replace so we can find files
+			// File paths have "\/" instead of "/".  replace so we can find files
 			// This is pretty drastic, but too bad
 			$taxons_json = str_replace("\\/", "/", $taxons_json);
 			
 			if ($taxons_json) {
 				// Have to be sure we have read & write permissions on system
-				$file_path = $tmp_path . $file_name;
-				$file_handle = fopen($file_path, "w");
-				$write = fwrite($file_handle, $taxons_json);
+				$json_file_path = $tmp_path . $json_file_name;
+				$json_file_handle = fopen($json_file_path, "w");
+				$write = fwrite($json_file_handle, $taxons_json);
 				if ($write) {
-					fclose($file_handle);
+					fclose($json_file_handle);
 					$return_string .= "<p>Data write complete</p>";
 				} else {
 					$return_string .= "<p>Error writing file</p>";
 				}
-				// $saved = file_put_contents("tmp/data.json", $taxons_json);
 			} else {
 				$return_string .= "<p>Error encoding for json</p>";
 			}
-			
 			$return_string .= "<h2>FIN</h2>";
 		}
 	}
@@ -148,37 +154,38 @@ function process_files() {
 
 function check_file($files_index) { //TODO: revise returns so they are text strings with explanation of problem.
 	if (!$files_index) {
-		return FALSE;
+		return "Null passed to check_file";
 	}
 	if (!(strlen($files_index) > 0)) {
-		return FALSE;
+		return "Empty string passed to check_file";
 	}
 	if (!$_FILES) {
-		return FALSE;
+		return "FILES array null in check_file";
 	}
 	if (!array_key_exists($files_index, $_FILES)) {
-		return FALSE;
+		return "key '{$files_index}' does not exist in FILES array in check_file";
 	}
 	if (!$_FILES[$files_index]) {
-		return FALSE;
+		return "element '{$files_index}' is null in FILES array in check_file";
 	}
 	if (!array_key_exists('name', $_FILES[$files_index])) {
-		return FALSE;
+		return "'name' element does not exist in FILES['{$files_index}'] in check_file";
 	}
 	if (!$_FILES[$files_index]['name']) {
-		return FALSE;
+		return "'name' element is null in FILES['{$files_index}'] in check_file";
 	}
 	if (!(strlen($_FILES[$files_index]['name']) > 0)) {
-		return FALSE;
+		return "'name' element is empty in FILES['{$files_index}'] in check_file";
 	}
+	$filename = $_FILES[$files_index]['name'];
 	if (!is_uploaded_file($_FILES[$files_index]['tmp_name'])) {
-		return FALSE;
+		return "File '{$filename}' could not be uploaded in check_file";
 	} 
 	$file = $_FILES[$files_index]['tmp_name'];
 	if (!file_exists($file) or !is_readable($file)) {
-		return FALSE;
+		return "File '{$filename}' does not exist or is unreadable on server in check_file";
 	}
-	return TRUE;
+	return "";
 }
 
 /**
@@ -263,8 +270,10 @@ function desc_to_array($desc_mapping, $desc_file_array) {
 	return FALSE;
 }
 
-function add_description($description, $add_to, $local_media_path, $public_path, $tmp_path) {
-//function add_description($description, $add_to, $local_media_path, $remote_media_path, $tmp_path) {
+function add_description($description, $add_to, MediaDetails $media_details) {
+	$local_media_path = $media_details->local_media_path;
+	$tmp_path = $media_details->additional_path_prefix;
+	
 	if (is_array($description)) {
 		foreach ($description as $key => $value) {
 			if (strlen(trim($value)) > 0) {
@@ -306,76 +315,175 @@ function add_description($description, $add_to, $local_media_path, $public_path,
 					case "Pronotum image":
 					case "Elytral microsculpture":
 					case "Genitalia left image":
-						// TODO: some hard-coding here to just get the first image file...
+						// Some hard-coding here to just get the first image file...
+						// TODO: If we wanted to download MORE than one image file, would need to figure out 
+						// where first file ends in the pipe-delimited text and where the second (and third, 
+						// fourth...) image begins
+						// e.g. 
+						// 3019|2|V100779.Body_.jpg|public://V100779.Body_.jpg|...|1315|3016|2|V100776.Body_.Scale_.jpg|public://V100776.Body_.Scale_.jpg|...
+						// ^---start of first                          end of first---^ ^---start of second
 						$value = explode("|", $value);
 						$image_file_name = $value[2];
-						// Since we are NOT using $image_file_name to retrieve the file, we can manipulate 
+						// Since we are NOT using $image_file_name to retrieve the file, we can manipulate
 						// it here.  Replace space(s) with underscores
 						$image_file_name = preg_replace("/\s+/", "_", trim($image_file_name));
-						
+
 						$remote_image_path = $value[3];
 						// Don't do this:
 						//	$remote_path_exploded = explode("/", $remote_image_path);
 						//	$image_file_name = $remote_path_exploded[count($remote_path_exploded) - 1];
-						// it won't work with morphbank images (because $value[3] is a url with "/" characters)						
-						
-						if (substr_count($remote_image_path, "public://") > 0) {
-							$remote_image_path = str_replace("public://", $public_path, $remote_image_path);
-						}
+						// it won't work with morphbank images (because $value[3] is a url with "/" characters)
 
-						// TODO: Do check to make sure Imagick available
-						// try/catch
-						$image = new Imagick($remote_image_path);
-						$image->setimageformat("jpg");
-						$image_height = $image->getimageheight();
-						if ($image_height > 500) {
-							$image->scaleimage(0, 500);
-						}
-						$image_width = $image->getimagewidth();
-						if ($image_width > 500) {
-							$image->scaleimage(500, 0);
-						}
-						
-						$local_file_path = $local_media_path . $image_file_name;
-						// Let's make sure the extension is .jpg...
-						$append_jpg = FALSE;
-						if (substr_count($local_file_path, ".") > 0) {
-							$path_exploded = explode(".", $local_file_path);
-							$ext = $path_exploded[count($path_exploded) - 1];
-							$jpg_array = array("jpg", "jpeg");
-							if (!in_array(strtolower($ext), $jpg_array)) {
-								$append_jpg = TRUE;
-								//$local_file_path .= ".jpg";
+						// See if there are any path replacements necessary
+						if ($media_details->replacement_paths && is_array($media_details->replacement_paths)) {
+							foreach ($media_details->replacement_paths as $one_pair) {
+								if (is_array($one_pair) && array_key_exists('search', $one_pair) && array_key_exists('replace', $one_pair)) {
+									$search = $one_pair['search'];
+									$replace = $one_pair['replace'];
+									if (substr_count($remote_image_path, $search) > 0) {
+										$remote_image_path = str_replace($search, $replace, $remote_image_path);
+									}
+								}
 							}
-						} else {
-							$append_jpg = TRUE;
 						}
-						if ($append_jpg) {
-							$local_file_path .= ".jpg";
-						}
-						
-						if (!array_key_exists('media', $add_to) || !is_array($add_to['media'])) {
-							$add_to['media'] = array();
-						}
-						$new_media = array(
-								'type' => "img",
-								'alt' => $key,
-						);
 
-						$tmp_file_path = $tmp_path . $local_file_path;
+						if (! array_key_exists ( 'media', $add_to ) || ! is_array ( $add_to ['media'] )) {
+							$add_to ['media'] = array ();
+						}
+						$new_media = array (
+								'type' => "img",
+								'alt' => $key 
+						);
+						$file_retrieved = FALSE;
+						$local_file_path = $local_media_path . $image_file_name;
+						try {
+							$image = new Imagick ( $remote_image_path );
+							$image->setimageformat ( "jpg" );
+							$image_height = $image->getimageheight ();
+							if ($image_height > 500) {
+								$image->scaleimage ( 0, 500 );
+							}
+							$image_width = $image->getimagewidth ();
+							if ($image_width > 500) {
+								$image->scaleimage ( 500, 0 );
+							}
+							
+							// Let's make sure the extension is .jpg...
+							$append_jpg = FALSE;
+							if (substr_count ( $local_file_path, "." ) > 0) {
+								$path_exploded = explode ( ".", $local_file_path );
+								$ext = $path_exploded [count ( $path_exploded ) - 1];
+								$jpg_array = array (
+										"jpg",
+										"jpeg" 
+								);
+								if (! in_array ( strtolower ( $ext ), $jpg_array )) {
+									$append_jpg = TRUE;
+								}
+							} else {
+								$append_jpg = TRUE;
+							}
+							if ($append_jpg) {
+								$local_file_path .= ".jpg";
+							}
+							$tmp_file_path = $tmp_path . $local_file_path;
+							if ($image->writeimage("jpg:" . $tmp_file_path)){
+								$new_media['src'] = $local_file_path;
+								$file_retrieved = TRUE;
+							}
+						} catch ( Exception $e ) {
+							// Maybe Imagemagick isn't installed, so just grab the file
+							$tmp_file_path = $tmp_path . $local_file_path;
+							if (copy($remote_image_path, $tmp_file_path)) {
+								$new_media['src'] = $local_file_path;
+								$file_retrieved = TRUE;
+							}
+						}
 						
-						if ($image->writeimage("jpg:" . $tmp_file_path)){
-							$new_media['src'] = $local_file_path;
-						} else {// TODO: Need to deal with these failures on JavaScript side of things...
+						if (!$file_retrieved) { // TODO: Need to deal with these failures on JavaScript side of things...
 							$new_media['filename'] = $image_file_name;
 						}
+
 						$add_to['media'][] = $new_media;
-						
+
 				} // end switch on $key
 			} // end conditional for non-empty $value
 		}
 		return $add_to;
 	} else {
 		return $add_to;
+	}
+}
+
+
+class MediaDetails {
+	/**
+	 * The path to which media will be saved locally.
+	 * @var string
+	 */
+	public $local_media_path;
+	
+	/**
+	 * Any additional path to prefix, such as "tmp/"
+	 * @var string
+	 */
+	public $additional_path_prefix;
+	
+	/**
+	 * An array of two-element arrays, each with 'search' and 'replace' keys.
+	 * @var array
+	 */
+	public $replacement_paths;	
+	
+	/**
+	 * Constructor
+	 * 
+	 * @param string $local_media_path
+	 * The path to which media will be saved locally.
+	 * 
+	 * @param string[optional] $additional_path_prefix
+	 * Any additional path to prefix, such as "tmp/"; prefix will be used for saving files
+	 * but <em>not</em> for writing path information to json file.
+	 * 
+	 * @param array[optional] $replacement_paths
+	 * An array of two-element arrays, each of which has a 'search' key and a 'replace' key:
+	 * <pre>
+	 * 	array (
+	 * 		array (
+	 * 			'search' => "public://",
+	 * 			'replace' => "http://bembidion.info/sites/bembidion.info/files/"
+	 * 		),
+	 * 		array (
+	 * 			'search' => "local://",
+	 * 			'replace' => "http://another.site.com/files/"
+	 * 		),
+	 * );
+	 * </pre>
+	 * Will be used to find/replace path fragements that are not URLs; e.g. Scratchpads will 
+	 * refer to files stored on the Scratchpad with the local path information only 
+	 * ("public://V100778.Body_.Scale_.jpg"), which thus inaccessible to us.
+	 * 
+	 * @return MediaDetails
+	 */
+	function __construct($local_media_path, $additional_path_prefix = "", $replacement_paths = array()) {
+		if (!is_null($local_media_path) && strlen(trim($local_media_path)) > 0) {
+			$this->local_media_path = trim($local_media_path);
+			if (!is_null($additional_path_prefix) && strlen(trim($additional_path_prefix)) > 0) {
+				$this->additional_path_prefix = $additional_path_prefix;
+			}
+			if (!is_null($replacement_paths) && is_array($replacement_paths)) {
+				$arrays_ok = TRUE;
+				foreach ($replacement_paths as $one_pair) {
+					if (!array_key_exists('search', $one_pair) || !array_key_exists('replace', $one_pair)) {
+						$arrays_ok = FALSE;
+					}
+				}
+				if ($arrays_ok) {				
+					$this->replacement_paths = $replacement_paths;
+				}
+			}
+		} else {
+			return NULL;
+		}
 	}
 }
