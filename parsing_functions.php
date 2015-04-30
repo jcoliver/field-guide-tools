@@ -9,9 +9,11 @@
  */
 function process_files() {
 	include_once 'requested_fields.php';
-	// TODO: make this an array
+	// TODO: make this an array (see also commented out sections below)
+	// $top_conceptguids_array = array("bembidion.info:taxon-concepts:000007");
 	$top_concept_guid = "bembidion.info:taxon-concepts:000007"; // this is the one we want replaced with "none"
-	// TODO: make array of strings to skip?  Skip none is empty array
+	// TODO: make array of strings to skip?  Skip none is empty array (see also commented out sections below)
+	// $strings_to_skip = array("unidentified");
 	$skip_unidentified = TRUE;
 	$json_file_name = "data/taxa.json"; // Make sure you can write to this file
 	$tmp_path = "tmp/";
@@ -72,8 +74,16 @@ function process_files() {
 					$name = $taxon_array[$tax_mapping['Term name']];
 					$guid = $taxon_array[$tax_mapping['GUID']];
 					if ($guid != $top_concept_guid) {
+					// if (!in_array($guid, $top_concept_guids_array)) {
 						$is_unidentified = substr_count(strtolower($name), "unidentified") > 0;
+						// $skip = FALSE;
+						// foreach ($strings_to_skip as $to_skip) { // TODO: could make this a while that exits when $skip == TRUE
+						// 	if (substr_count($name, $to_skip) > 0) {
+						//		$skip = TRUE;
+						// 	}
+						// }
 						if (!$is_unidentified || ($is_unidentified && !$skip_unidentified)) {
+						// if (!$skip) {
 							$for_taxons = array();
 							foreach ($tax_mapping as $column_name => $column_position) {
 								$value = $taxon_array[$column_position];
@@ -90,6 +100,7 @@ function process_files() {
 										break;
 									case "Parent GUID":
 										if ($value != $top_concept_guid) {
+										// if (!in_array($value, $top_conceptguids_array)) {
 											// Remove any non-alphanumeric characters
 											$value = preg_replace("/[^A-Za-z0-9 ]/", '', $value);
 											$for_taxons['parentid'] = $value;
@@ -152,7 +163,18 @@ function process_files() {
 	return $return_string;
 }
 
-function check_file($files_index) { //TODO: revise returns so they are text strings with explanation of problem.
+/**
+ * Checks to make sure the file referenced by the given key in the $_FILES array 
+ * is valid.
+ * 
+ * @param string $files_index
+ * 	The key to check in $_FILES array
+ * 
+ * @return string
+ * <p>In the case of no errors, returns an empty (zero-length) string; if there 
+ * are problems, returns string with details about the problem.</p>
+ */
+function check_file($files_index) {
 	if (!$files_index) {
 		return "Null passed to check_file";
 	}
@@ -213,6 +235,20 @@ function convert_smart_quotes($string) {
 	return str_replace($search, $replace, $string);
 }
 
+/**
+ * Converts a file to an array, replacing old linebreaks with \n and 
+ * cludges to remove linebreak characters within fields.
+ * 
+ * @param string $filename
+ * 	The name of the file to convert; should probably be something like 
+ * 	$_FILES['description-file']['tmp_name']
+ * 
+ * @return string|boolean
+ * 	If no errors occur, returns an array representation of the file, with 
+ * 	each element in the array corresponding to a line in the file.  If any 
+ * 	errors occur (file could not be found or if it is not UTF-8), returns 
+ * 	FALSE
+ */
 function file_to_array($filename) {
 	$file_string = file_get_contents($filename);
 	if (!$file_string) {
@@ -240,7 +276,21 @@ function file_to_array($filename) {
 	
 }
 
-// associative array with Taxonomic name (Name) as the key, and value an array of descriptions
+/**
+ * Returns associative array with Taxonomic name (Name) as the key, and value an 
+ * array of descriptions
+ * 
+ * @param array $desc_mapping
+ * 	The mapping of field names in a taxon description to their position in the 
+ * 	array representation of the taxon descriptions file
+ * 
+ * @param array $desc_file_array
+ * 	Array representation of taxon description file (each line represented by a 
+ * 	single element).
+ * 
+ * @return array
+ * 	An array of taxon description arrays, indexed by taxonomic name
+ */
 function desc_to_array($desc_mapping, $desc_file_array) {
 	if (is_array($desc_mapping) && count($desc_mapping) > 0
 			&& is_array($desc_file_array)) {
@@ -270,7 +320,25 @@ function desc_to_array($desc_mapping, $desc_file_array) {
 	return FALSE;
 }
 
+/**
+ * Adds description information, including any media details to the passes $add_to 
+ * array and returns this array.
+ * 
+ * @param array $description
+ * 	An array representation of a taxon description
+ * 
+ * @param array $add_to
+ * 	An array of taxon information 
+ * 
+ * @param MediaDetails $media_details
+ * 	Storage class for information about media file paths
+ * 
+ * @return array
+ * 	The $add_to array, with any additional information about passed taxon description
+ */
 function add_description($description, $add_to, MediaDetails $media_details) {
+	// TODO: instead of passing $add_do & returning it, could pass as reference and return 
+	// nothing (or false if problems are encountered).
 	$local_media_path = $media_details->local_media_path;
 	$tmp_path = $media_details->additional_path_prefix;
 	
@@ -415,7 +483,9 @@ function add_description($description, $add_to, MediaDetails $media_details) {
 	}
 }
 
-
+/**
+ * Storage class for media path information.
+ */
 class MediaDetails {
 	/**
 	 * The path to which media will be saved locally.
@@ -461,7 +531,7 @@ class MediaDetails {
 	 * </pre>
 	 * Will be used to find/replace path fragements that are not URLs; e.g. Scratchpads will 
 	 * refer to files stored on the Scratchpad with the local path information only 
-	 * ("public://V100778.Body_.Scale_.jpg"), which thus inaccessible to us.
+	 * ("public://V100778.Body_.Scale_.jpg"), which is thus inaccessible to us.
 	 * 
 	 * @return MediaDetails
 	 */

@@ -1,6 +1,17 @@
 <?php
 
-
+/**
+ * Creates an empty array with the passed values in $keys as keys.
+ * 
+ * @param array $keys
+ * 	An array of values to use as array keys.  The values should probably be strings 
+ * 	or numerics
+ * 
+ * @return boolean|array
+ * 	As long as $keys is a non-empty array, will return an array with keys corresponding 
+ *  to each element in $keys and all values NULL; returns FALSE if $keys is not an array 
+ *  or if it is an empty array
+ */
 function get_empty_array($keys) {
 	if (is_array($keys) && count($keys) > 0) {
 		$empty_array = array_fill_keys($keys, "");
@@ -10,11 +21,6 @@ function get_empty_array($keys) {
 	}
 }
 
-	// will have field name as key, and position (column #) as value, e.g.
-	// 'Term name' => 0
-	// 'GUID' => 3
-	// 'Parent GUID' => 4
-	// 'Rank' => 10
 /**
  * Returns a mapping associative array, where the key is the string name of a column in 
  * the passed $header string and the value is the position of that string in $header, 
@@ -60,7 +66,7 @@ function get_mapping($type, $header, $delimiter = "\t") {
 }
 
 /**
- * Returns an array of the fields we are interested in from Taxon Description
+ * Returns an array of the names of fields we are interested in from Taxon Description
  * 
  * @return array:string
  */
@@ -84,7 +90,7 @@ function get_desc_file_fields() {
 }
 
 /**
- * Returns an array of the fields we are interested in from Taxonomy
+ * Returns an array of the names of fields we are interested in from Taxonomy
  * 
  * @return array:string
  */
@@ -95,4 +101,35 @@ function get_tax_file_fields() {
 			"Parent GUID",
 			"Rank",
 	);
+}
+
+/**
+ * Returns an array of the names of fields we are interested in from Location;
+ * will mostly be used to retrieve geographic information for taxa to allow geographic 
+ * filtering.
+ * 
+ * @return array:string
+ */
+function get_loc_file_fields() {
+	return array (
+			'GUID',
+			'Latitude',
+			'Longitude',
+			'Country',
+			'State/Province',
+			);
+}
+
+/**
+ * Returns an array of the names of fields we are interested in from Specimen/Observation;
+ * will mostly be used to retrieve geographic information for taxa to allow geographic 
+ * filtering.
+ * 
+ * @return array:string
+ */
+function get_spec_file_fields() {
+	return array (
+			'Taxonomic name (GUID)',
+			'Location (GUID)',
+			);
 }
