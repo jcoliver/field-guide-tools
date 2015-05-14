@@ -60,12 +60,13 @@ function process_files() {
 			$desc_header = $desc_file_array[0];
 			$desc_mapping = get_mapping("description", $desc_header);
 			$desc_as_array = desc_to_array($desc_mapping, $desc_file_array);
+/*			
 $return_string .= "<h3>DESCRIPTION TITLES: </h3>\n";
 foreach ($desc_as_array as $desc_title => $desc_value) {
 	$return_string .= "<p>" . $desc_title . "</p>\n";
 }
 $return_string .= "<h3>END DESCRIPTION TITLES</h3>\n";
-			
+*/			
 			$tax_header = $tax_file_array[0];
 			$tax_mapping = get_mapping("taxonomy", $tax_header);
 				
@@ -127,10 +128,12 @@ $return_string .= "<h3>END DESCRIPTION TITLES</h3>\n";
 								if (array_key_exists($name, $desc_as_array)) {
 									$description = $desc_as_array[$name];
 									$for_taxons = add_description($description, $for_taxons, $media_details);
+/*									
 $return_string .= "<p>Description: </p>\n";
 foreach ($description as $d_key => $d_value) {
 	$return_string .= "<p>" . $d_key . " = " . $d_value . "</p>\n";
 }
+*/
 								}
 								$taxons_for_json[] = $for_taxons;
 							}
@@ -276,6 +279,7 @@ function file_to_array($filename) {
 	// A pair of cludges to deal with in-field newlines
 	$file_string = str_replace(">\n\"", ">\"", $file_string);
 	$file_string = str_replace("/p>\n<p", "/p><p", $file_string);
+	$file_string = str_replace(">\n", ">", $file_string);
 	// And another pair to remove unnecessary quotes around paragraphs
 	$file_string = str_replace("\"<p>", "<p>", $file_string);
 	$file_string = str_replace("</p>\"", "</p>", $file_string);
@@ -436,7 +440,7 @@ function add_description($description, $add_to, MediaDetails $media_details) {
 						);
 						$file_retrieved = FALSE;
 						$local_file_path = $local_media_path . $image_file_name;
-//						try {
+						try {
 							$image = new Imagick ( $remote_image_path );
 							$image->setimageformat ( "jpg" );
 							$image_height = $image->getimageheight ();
@@ -471,15 +475,20 @@ function add_description($description, $add_to, MediaDetails $media_details) {
 								$new_media['src'] = $local_file_path;
 								$file_retrieved = TRUE;
 							}
-/*						} catch ( Exception $e ) {
+						} catch ( Exception $e ) {
 							// Maybe Imagemagick isn't installed, so just grab the file
-							$tmp_file_path = $tmp_path . $local_file_path;
-							if (copy($remote_image_path, $tmp_file_path)) {
-								$new_media['src'] = $local_file_path;
-								$file_retrieved = TRUE;
+							// First make sure the url is valid
+							if (filter_var($remote_image_path, FILTER_VALIDATE_URL) === FALSE) {
+								$new_media['missingsrc'] = $remote_image_path;
+							} else {
+								$tmp_file_path = $tmp_path . $local_file_path;
+								if (copy($remote_image_path, $tmp_file_path)) {
+									$new_media['src'] = $local_file_path;
+									$file_retrieved = TRUE;
+								}
 							}
 						}
-*/						
+						
 						if (!$file_retrieved) { // TODO: Need to deal with these failures on JavaScript side of things...
 							$new_media['filename'] = $image_file_name;
 						}
