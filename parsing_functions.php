@@ -60,13 +60,6 @@ function process_files() {
 			$desc_header = $desc_file_array[0];
 			$desc_mapping = get_mapping("description", $desc_header);
 			$desc_as_array = desc_to_array($desc_mapping, $desc_file_array);
-/*			
-$return_string .= "<h3>DESCRIPTION TITLES: </h3>\n";
-foreach ($desc_as_array as $desc_title => $desc_value) {
-	$return_string .= "<p>" . $desc_title . "</p>\n";
-}
-$return_string .= "<h3>END DESCRIPTION TITLES</h3>\n";
-*/			
 			$tax_header = $tax_file_array[0];
 			$tax_mapping = get_mapping("taxonomy", $tax_header);
 				
@@ -128,12 +121,6 @@ $return_string .= "<h3>END DESCRIPTION TITLES</h3>\n";
 								if (array_key_exists($name, $desc_as_array)) {
 									$description = $desc_as_array[$name];
 									$for_taxons = add_description($description, $for_taxons, $media_details);
-/*									
-$return_string .= "<p>Description: </p>\n";
-foreach ($description as $d_key => $d_value) {
-	$return_string .= "<p>" . $d_key . " = " . $d_value . "</p>\n";
-}
-*/
 								}
 								$taxons_for_json[] = $for_taxons;
 							}
@@ -279,7 +266,7 @@ function file_to_array($filename) {
 	// A pair of cludges to deal with in-field newlines
 	$file_string = str_replace(">\n\"", ">\"", $file_string);
 	$file_string = str_replace("/p>\n<p", "/p><p", $file_string);
-	$file_string = str_replace(">\n", ">", $file_string);
+	$file_string = str_replace(">\n", ">", $file_string); // TODO: Not ideal; requires last field on a line NOT be enclosed in tags!!
 	// And another pair to remove unnecessary quotes around paragraphs
 	$file_string = str_replace("\"<p>", "<p>", $file_string);
 	$file_string = str_replace("</p>\"", "</p>", $file_string);
